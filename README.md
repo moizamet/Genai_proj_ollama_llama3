@@ -1,12 +1,13 @@
 
 # GenAI Summarization API 
 
-Developed API using flask framework for summarization that laverages llama3.1 model. 
+Developed API using flask framework for summarization that laverages llama3.1 model & PGVector Store.
 llama3.1 is deployed locally using ollama container.
 
 
 ### Below is the high level architecture
-![image](https://github.com/user-attachments/assets/cefcb9f3-999d-45a6-a460-64d2c3e0113b)
+![GenAI Book Summarization App](https://github.com/user-attachments/assets/9e406721-924c-41d4-8772-1bf49d0c764f)
+
 
 
 ### Deployment Steps
@@ -21,7 +22,7 @@ docker run ollama/ollama
 ```
 
 
-2. Run docker-compose to bring up ollama and application container. It will also mount the directory so we don't need to download model everytime.
+2. Run docker-compose to bring up ollama, pgvector and application container. It will also mount the directory so we don't need to download model everytime.
 It will also setup the ports required.
 
 ```bash
@@ -35,7 +36,8 @@ docker-compose up
 ```bash
 docker-compose ps
 ```
-![image](https://github.com/user-attachments/assets/7fc9374a-b2da-407f-adbe-1cf7714e1a0e)
+![image](https://github.com/user-attachments/assets/c5344012-9b60-4601-9010-16814d212301)
+
 
 It will show you running container. Now once you get the ollama container then download model
 
@@ -43,31 +45,13 @@ It will show you running container. Now once you get the ollama container then d
 docker exec -it flask-ollama-container-1 ollama run llama3.1
 ```
 
+4. Finaly I have provided sql queries. Connect directly to the container or use dbeaver to connect with pgvector db container and execute the queries.
+
 That's it. You can now try the endpoints.
 
-- For validating if app is running try this:
- ```GET localhost:5120/ ``` 
-
-- For checking interation of ollama with app try this:
-```GET localhost:5120/check_ollama```
-
-- For getting summary, try this:
-``` POST localhost:5120/get_summary ```
-
-### Example:
-#### Set basic authentication
-Username: moizamet\
-password: 1#52Succes$ \
-(good practice to protect the sensitive information but for quick demo purpose i have in plane text)
-
-#### JSON Request
-```bash
-{
-"text":"text to be summarize",
-"summary_word_limit":"Numeric Optional parameter. Example if 50 is sent then the summary will be of 50 words."
-}
-```
+## Refer the Swagger Documentation to get the Endpoint relevant details.
 
 ### Result
-![image](https://github.com/user-attachments/assets/9c7de2a4-53d9-42d3-a096-539573da3db6)
+![image](https://github.com/user-attachments/assets/5b0e6d9b-13c2-476c-a3f6-92c3578cfb19)
+
 
