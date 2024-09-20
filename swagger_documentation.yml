@@ -1,0 +1,308 @@
+openapi: "3.0.0"
+info:
+  title: Book API
+  version: "1.0"
+  description: API for managing books and reviews.
+servers:
+  - url: http://localhost:5120
+paths:
+  /:
+    get:
+      summary: Home
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    example: Success
+
+  /books:
+    post:
+      summary: Add a new book (summary field is not required)
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+      responses:
+        '201':
+          description: Record Inserted Successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+        '400':
+          description: Validation error
+
+    get:
+      summary: Get all books
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: A list of books
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookResponse'
+
+  /books/{bookId}:
+    parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    get:
+      summary: Get a book by ID
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: A book object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+        '404':
+          description: No book found
+
+    put:
+      summary: Update a book
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+      responses:
+        '200':
+          description: Updated Successfully
+        '400':
+          description: Validation error
+
+    delete:
+      summary: Delete a book
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Deleted Successfully
+        '404':
+          description: No book found
+
+  /books/{bookId}/reviews:
+    get:
+      summary: Get reviews for a book
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: A list of reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+
+    post:
+      summary: Add a review for a book
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Review'
+      responses:
+        '201':
+          description: Success
+        '400':
+          description: Validation error
+  /books/{bookId}/summary:
+    get:
+      summary: Get Aggregated Summary for a Book
+      security:
+        - basicAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Aggregated summary and rating for the specified book
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Summary:
+                    type: string
+                    example: "This book provides a comprehensive overview of..."
+                  Aggregated_Rating:
+                    type: number
+                    format: float
+                    example: 4.5
+        '404':
+          description: No book found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "No book found with this id."
+
+  /recommendations:
+    get:
+      summary: Get Book Recommendations
+      security:
+        - basicAuth: []
+      parameters:
+        - name: preferences
+          in: query
+          required: true
+          schema:
+            type: string
+            description: User preferences for book recommendations
+      responses:
+        '200':
+          description: Successful recommendations based on user input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Message:
+                    type: string
+                    example: "Success"
+                  Books:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Book 1 by Author A", "Book 2 by Author B"]
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Error message"
+
+  /generate-summary:
+    post:
+      summary: Generate Summary from Text
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: The text to generate a summary for
+                  example: "This is the text that needs to be summarized."
+      responses:
+        '200':
+          description: Successfully generated summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Input_Text:
+                    type: string
+                    example: "This is the text that needs to be summarized."
+                  Summary:
+                    type: string
+                    example: "This is the summary of the input text."
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Error message"
+
+components:
+  schemas:
+    BookRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+        author:
+          type: string
+        genre:
+          type: string
+        year_published:
+          type: integer
+        content:
+          type: string
+    
+    BookResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+        author:
+          type: string
+        genre:
+          type: string
+        year_published:
+          type: integer
+        summary:
+          type: string
+          nullable: true
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        book_id:
+          type: integer
+          nullable: true
+        user_id:
+          type: integer
+        review_text:
+          type: string
+        rating:
+          type: number
+          format: float
+
+
