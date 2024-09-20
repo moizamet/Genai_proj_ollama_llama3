@@ -3,8 +3,10 @@ FROM python:latest
 WORKDIR /app
 
 COPY app.py ./
+COPY requirements.txt ./
+COPY GenerateEmbeddings.py ./
 
-RUN pip install flask langchain langchain_ollama ollama Flask-BasicAuth pytest langchain_community
+RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 5120
 CMD ["python", "app.py"]

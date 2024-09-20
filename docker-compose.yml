@@ -6,8 +6,20 @@ services:
       - .ollama:/root/.ollama
     ports:
       - 11434:11434
-  
+  pgvector-container:
+    image: pgvector/pgvector:pg16
+    volumes:
+      - .db:/var/lib/postgresql/data
+    ports:
+      -  5432:5432
+    environment:
+      - POSTGRES_PASSWORD=security  
+      - PGDATA=/var/lib/postgresql/data/pgdata
+
   flask-app:
     image: llm_summary_app
     ports:
       - 5120:5120
+    depends_on:
+      - pgvector-container
+      - ollama-container
