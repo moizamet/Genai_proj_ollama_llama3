@@ -2,17 +2,57 @@ from flask import Flask,request,jsonify
 import psycopg2
 from pydantic import BaseModel, ValidationError
 from typing import Optional
-from GenerateEmbeddings import GenerateEmbeddings
+# from GenerateEmbeddings import GenerateEmbeddings
 from langchain_community.llms import Ollama
 from langchain_core.prompts import ChatPromptTemplate
 from flask_basicauth import BasicAuth
+from langchain_core.documents import Document
+from langchain_postgres import PGVector
+from langchain_postgres.vectorstores import PGVector
+from langchain_huggingface import HuggingFaceEmbeddings
 
+collection_name="Books_Summary"
+server="localhost"
+username="postgres"
+password="security"
+port="5432"
+database="genai_books_project"
+ollama_base_url="localhost"
+ollama_base_url="http://ollama-container:11434"
+server="pgvector-container"
+
+db_connection=f"postgresql+psycopg://{username}:{password}@{server}:{port}/{database}"
+model_name = "sentence-transformers/all-MiniLM-L6-v2"
+model_kwargs = {'device': 'cpu'}
+encode_kwargs = {'normalize_embeddings': False}
+embeddings = HuggingFaceEmbeddings(
+    model_name=model_name,
+    model_kwargs=model_kwargs,
+    encode_kwargs=encode_kwargs
+)
+
+vector_store = PGVector(
+    embeddings=embeddings,
+    collection_name=collection_name,
+    connection=db_connection,
+    use_jsonb=True,
+)
+print("Vector store Connection established..")
 
 
 #Get llama3.1 model from ollama service that is part of docker container running through Docker Compose
 model= Ollama(model="llama3.1", 
-              base_url="http://ollama-container:11434", 
+              base_url=ollama_base_url, 
               verbose=True)
+
+#db connection
+con=psycopg2.connect(
+        host=server,
+        port=port,
+        database=database,
+        user=username,
+        password=password
+)
 
 
 #Setting system and user prompts to get better summary result. We can add custom parameters to them.
@@ -45,9 +85,10 @@ class Review(BaseModel):
     rating:float
 
 #object used to generate embedding
-obj=GenerateEmbeddings()
+# obj=GenerateEmbeddings()
 
 def getSummaryFromLLM(input_text):
+    print("Generating Summary")
     chain=prompt | model
     summary=chain.invoke({"input_text":input_text})
     return summary
@@ -62,14 +103,7 @@ app.config['BASIC_AUTH_PASSWORD'] = '1#52Succes$'
 #Basic Auth initialization
 basicAuth=BasicAuth(app)
 
-#db connection
-con=psycopg2.connect(
-        host="pgvector-container",
-        port=5432,
-        database="genai_books_project",
-        user="postgres",
-        password="security"
-)
+
 
 
 
@@ -115,24 +149,31 @@ def getRecommendation(user_input):
     Returns:
         list: A list of formatted book recommendations or a message if no matches are found.
     """
-    print("getting recommendations")
-    em=obj.getEmbeddings(user_input)
-    query="select book_id from books_summary_embeddings order by embeddingzz <=> %s ::vector"
-    response=execute_query(query,(em,))
-    print(response)
+    print("getting recommendations", user_input)
+    # em=obj.getEmbeddings(user_input)
+    # query="select book_id from books_summary_embeddings order by embeddingzz <=> %s ::vector"
+    # response=execute_query(query,(em,))
+
+    response=vector_store.similarity_search_with_relevance_scores(user_input,k=5)
+    for doc in response:
+        print(doc)
+        print("====================================")
+
+    
 
     if len(response)>0:
-        book_ids=[]
+        book_ids=()
         
-        for res in response:
-            book_ids.append(str(res[0]))
+        for doc in response:
+            book_ids=book_ids+(str(doc[0].metadata["book_id"]),)
         print(book_ids)
-        ids="','".join(book_ids)
-        query=f"select distinct * from books where id in (%s);"
-        books=execute_query(query,(ids,))
+        # ids="','".join(book_ids)
+        # print(ids)
+        query=f"select distinct * from books where id IN %s;"
+        books=execute_query(query,(book_ids,))
         recommendation_list=[]
         for book in books:
-            value=f"{book[1]} By {book[2]} in {book[3]} genre, published in {[4]}"
+            value=f"{book[1]} By {book[2]} in {book[3]} genre, published in {book[4]}"
             recommendation_list.append(value)
         return recommendation_list
     else:
@@ -148,6 +189,14 @@ def home():
         "Message":"Success"
     })
 
+def addToVectoDb(summary,id):
+    docs=[
+    Document(
+        page_content=summary,
+        metadata={"book_id":id}
+    )
+    ]
+    vector_store.add_documents(docs,ids=[id])
 
 @app.route("/books",methods=["POST"])
 @basicAuth.required
@@ -164,10 +213,13 @@ def add_book():
                 """
         id=execute_query(query,(new_book.title,new_book.author,new_book.genre,new_book.year_published,new_book.summary))
         print(id)
-
-        em=obj.getEmbeddings(new_book.summary)
-        query="insert into books_summary_embeddings (book_id,embeddingzz) values (%s, %s);"
-        execute_query(query,(id[0],em ))
+        new_book.id=id[0][0]
+        
+        #Adding book in vector store for similarity
+        addToVectoDb(new_book.summary,id[0][0])
+        # em=obj.getEmbeddings(new_book.summary)
+        # query="insert into books_summary_embeddings (book_id,embeddingzz) values (%s, %s);"
+        # execute_query(query,(id[0],em ))
         
         return jsonify({
             "Message":"Record Inserted Successfully",
@@ -203,8 +255,10 @@ def update_book(bookId):
                     args=args+(summary,)
 
                     #updating embedding
-                    em=obj.getEmbeddings(summary)
-                    execute_query("update books_summary_embeddings set embeddingzz=%s where book_id=%s",(em,bookId))
+                    # em=obj.getEmbeddings(summary)
+                    # execute_query("update books_summary_embeddings set embeddingzz=%s where book_id=%s",(em,bookId))
+                    vector_store.delete(ids=[str(bookId)])
+                    addToVectoDb(summary,bookId)
 
                 else:
                     query=query+f"{column}=%s, "
@@ -243,8 +297,10 @@ def deleteBook(bookId):
             })
         query="delete from reviews where book_id=%s"
         execute_query(query,(bookId,))
-        query="delete from books_summary_embeddings where book_id=%s"
-        execute_query(query,(bookId,))
+        # query="delete from books_summary_embeddings where book_id=%s"
+        # execute_query(query,(bookId,))
+        vector_store.delete(ids=[str(bookId)])
+
         query="delete from books where id=%s"
         execute_query(query,(bookId,))
         return jsonify({
